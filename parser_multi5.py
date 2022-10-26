@@ -8,13 +8,11 @@ from threading import Thread
 
 logger.add("file_{time}.log")
 
-
 def send_msg(text):
-    token = "5672464933:AAFr2hki0cKAt4IfAs7P8PNXh6trHji9HWg"
-    chat_id = "366126618"
+    token = "token"
+    chat_id = "chat_id"
     url_req = "https://api.telegram.org/bot" + token + "/sendMessage" + "?chat_id=" + chat_id + "&text=" + text
     results = requests.get(url_req)
-
 
 def parsing_main(page):
     logger.info("Парсинг главной страницы начат")
@@ -31,14 +29,12 @@ def parsing_main(page):
                 category[names.text] = "https://www.chitai-gorod.ru" + href.get('href')
     return response
 
-
 def atributerror(book, metod, class_):
     try:
         atr = book.find(metod, {'class': class_}).text.strip()
     except AttributeError:
         atr = 'Нет'
     return atr
-
 
 def publish(book):
     class_publish = {}
@@ -47,7 +43,6 @@ def publish(book):
         class_publish[tag[0].text] = tag[1].text
     return class_publish
 
-
 def keyerror(book, text):
     try:
         atr = publish(book)[text]
@@ -55,14 +50,12 @@ def keyerror(book, text):
         atr = 'Нет'
     return atr
 
-
 def pagination(html_doc):
     try:
         last_page = int([i.text.strip() for i in html_doc.find_all('a', {'class': 'pagination-item'})][-2])
     except:
         last_page = 1
     return last_page
-
 
 def parsing_books_from_page(page):
     df1 = pd.DataFrame(columns=['Category', 'Name', 'Author', 'Price', 'Publisher', 'Year'])
@@ -87,27 +80,28 @@ def parsing_books_from_page(page):
     else:
         logger.error('Страница {0} категории {1} недоступна'.format(page, name))
 
-
 def clean_csv():
     with open('./books.csv', 'w'):
         pass
-
 
 def allow(i, last, t):
     if i > last:
         pass
     else:
         t.start()
+        # logger.debug('Поток {} стартовал'.format(t))
         time.sleep(0.2)
-
+        # logger.debug('Поток {} выждал 0.2 секунды'.format(t))
 
 def stop(t):
     if t.is_alive() == False:
+        # logger.debug('Поток {} не запущен'.format(t))
         pass
     else:
-        t.join(0.2)
+        t.join()
+        # logger.debug('Поток {} остановлен'.format(t))
 
-
+###Основной код###
 page = "https://www.chitai-gorod.ru/catalog/books/"
 time_start = datetime.datetime.now()
 send_msg("Парсинг запущен, время запуска - {0}".format(time_start))
@@ -116,22 +110,20 @@ clean_csv()
 if parsing_main(page).ok:
     for name in category:
         parsing_books_from_page(1)
-        for i in range(2, pagination(html_doc) + 1, 5):
-            t1 = Thread(target=parsing_books_from_page, name=f'Tread{i}', args=(i,))
-            t2 = Thread(target=parsing_books_from_page, name=f'Tread{i + 1}', args=(i + 1,))
-            t3 = Thread(target=parsing_books_from_page, name=f'Tread{i + 2}', args=(i + 2,))
-            t4 = Thread(target=parsing_books_from_page, name=f'Tread{i + 3}', args=(i + 3,))
-            t5 = Thread(target=parsing_books_from_page, name=f'Tread{i + 4}', args=(i + 4,))
-            allow(i, pagination(html_doc), t1)
-            allow(i + 1, pagination(html_doc), t2)
-            allow(i + 2, pagination(html_doc), t3)
-            allow(i + 3, pagination(html_doc), t4)
-            allow(i + 4, pagination(html_doc), t5)
-            stop(t1)
-            stop(t2)
-            stop(t3)
-            stop(t4)
-            stop(t5)
+        last = pagination(html_doc)
+
+        for i in range(2, last + 1, 5):
+            t = [Thread(target=parsing_books_from_page, name=f'Tread{i + r}', args=(i + r,)) for r in range(5)]
+            lst = ['1', '2', '3', '4', '5']
+            for j in range(5):
+                vars()["t" + lst[j]] = t[j]
+
+            f = [t1, t2, t3, t4, t5]
+            for r in range(5):
+                allow(i + r, last, f[r])
+
+            for t in f:
+                stop(t)
 
         send_msg("{0} - Закончена категория {1}".format(datetime.datetime.now(), name))
 else:
